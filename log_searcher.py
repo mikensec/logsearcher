@@ -2,73 +2,60 @@ import os
 import re
 import json
 import argparse
-from multiprocessing import Pool
+import multiprocessing
 
 def search_file(args):
-    filepath, combined_patterns = args
+    filepath, patterns = args
     results = []
 
-    with open(filepath, 'r', errors='replace') as file:
-        for line_num, line in enumerate(file, 1):
-            for pattern, search_string in combined_patterns:
-                if all(re.search(p, line) for p in pattern):
-                    results.append({
-                        "file": filepath,
-                        "line": line_num,
-                        "string": search_string,
-                        "result": line.strip()
-                    })
+    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        for lineno, line in enumerate(f, 1):
+            all_found = all(any(re.search(pattern, line) for pattern in or_group) for or_group in patterns)
+            if all_found:
+                results.append((filepath, lineno, line.strip(), patterns))
 
     return results
 
-def process_logs(directory_path, combined_patterns):
-    all_files = []
+def parse_search_terms(terms):
+    and_groups = [group.split(' or ') for group in terms]
+    and_groups = [[term.strip().lower() for term in group] for group in and_groups]
 
-    for dirpath, _, filenames in os.walk(directory_path):
-        for filename in filenames:
-            all_files.append(os.path.join(dirpath, filename))
+    return and_groups
 
-    with Pool() as pool:
-        all_results = pool.map(search_file, [(f, combined_patterns) for f in all_files])
+def main():
+    parser = argparse.ArgumentParser(description='Search log files for patterns.')
+    parser.add_argument('directory', help='Directory containing log files.')
+    parser.add_argument('search_terms', nargs='+', help='Terms to search for. Use "and" for AND operations, "or" for OR operations.')
+    parser.add_argument('--output', help='Output to a JSON file.', action='store_true')
 
-    # Flatten the list of lists
-    results = [item for sublist in all_results for item in sublist]
-
-    return results
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Search logs using regex patterns.")
-    parser.add_argument("directory", help="Directory containing the log files.")
-    parser.add_argument("search_terms", nargs='+', help="Patterns to search for. Use 'and' between patterns to search for combined queries. Use spaces between distinct queries.")
-    parser.add_argument("--output", help="Output file to save the results in JSON format. If not specified, results will be printed on screen.")
-    
     args = parser.parse_args()
 
-    # Grouping search terms
-    combined_patterns = []
-    temp_patterns = []
-    search_string = ""
+    search_terms = parse_search_terms(args.search_terms)
 
-    for term in args.search_terms:
-        if term.lower() == 'and':
-            search_string += " and "
-        else:
-            temp_patterns.append(term)
-            search_string += term
-            if len(temp_patterns) > 1:
-                combined_patterns.append((temp_patterns, search_string))
-                temp_patterns = []
-                search_string = ""
-            else:
-                combined_patterns.append((temp_patterns, search_string))
+    pool = multiprocessing.Pool()
+    files = [os.path.join(root, file) for root, dirs, files in os.walk(args.directory) for file in files]
 
-    results = process_logs(args.directory, combined_patterns)
+    results = []
+    for file_results in pool.imap(search_file, [(f, search_terms) for f in files]):
+        results.extend(file_results)
 
-    # If an output file is specified, write to that file
+    output = {
+        "search": args.search_terms,
+        "results": [
+            {
+                "file": r[0],
+                "line": r[1],
+                "match": r[2],
+                "log": r[3]
+            } for r in results
+        ]
+    }
+
     if args.output:
-        with open(args.output, 'w') as outfile:
-            json.dump(results, outfile, indent=4)
-        print(f"Results saved to {args.output}.")
+        with open('output.json', 'w') as f:
+            json.dump(output, f, indent=4)
 
-    # Always print results to screen
-    print(json.dumps(results, indent=4))
+    print(json.dumps(output, indent=4))
+
+if __name__ == "__main__":
+    main()
