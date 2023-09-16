@@ -1,99 +1,77 @@
-# Log Searcher Tool By: Michael Nieto @mikensec
+# Log Searcher by Michael Nieto @mikensec
 
-Created by Michael Nieto @mikensec
+## Description
 
-## Introduction
-
-This script provides a fast and efficient way to search through large log directories for specific patterns. It uses regular expressions, multi-threading, and can output results in a JSON format.
+Log Searcher is a Python script for searching through large log files for specific patterns using regular expressions. It's designed to be fast, using multi-threading to speed up the search process. The script also supports searching in subfolders and outputting the results in a JSON format.
 
 ## Requirements
 
 - Python 3.x
-- No external libraries are needed.
 
-## Download
+No external libraries are required.
 
-```bash
-git clone https://github.com/mikensec/logsearcher.git
-```
+## Installation and Usage
 
-## Usage
+1. Clone the repository:
 
-### Making the script executable:
+   ```bash
+   git clone https://github.com/mikensec/logsearcher.git
+   ```
 
-**Bash**:
+2. Navigate to the folder containing the `log_searcher.py` file.
 
-```bash
-chmod +x log_searcher.py
-```
+3. Make the script executable:
 
-**Running the script**:
+   **On Linux or macOS:**
 
-**Bash**:
+   ```bash
+   chmod +x log_searcher.py
+   ```
 
-```bash
-./log_searcher.py /path/to/logs 'search_pattern1' 'search_pattern2' --output output_file.json
-```
+   **On Windows:**
+   No need to make it executable. Just run with Python.
 
-**PowerShell**:
+4. Run the script:
 
-```powershell
-python .\log_searcher.py 'C:\path\to\logs' 'search_pattern1' 'search_pattern2' --output output_file.json
-```
+   **On Linux or macOS:**
 
-### Search Patterns:
+   ```bash
+   ./log_searcher.py /path/to/logs "string1" "string2" --output my_results.json
+   ```
 
-You can provide multiple search patterns, and the script will search for logs containing any of the patterns.
+   **On Windows:**
 
-#### Combined Query:
+   ```powershell
+   python log_searcher.py C:\path\to\logs "string1" "string2" --output my_results.json
+   ```
 
-To search for logs containing multiple strings within the same line, use the `and` keyword:
+## Search Patterns
 
-```bash
-./log_searcher.py /path/to/logs 'string1 and string2'
-```
+- For a simple string search, just include the string in quotes: `"string"`
+- To combine multiple search terms, use `and` (case-insensitive): `"string1" and "string2"`
+- To search for multiple alternatives, use `or` (case-insensitive): `"string1" or "string2"`
 
-This will find lines containing both `string1` and `string2`.
+If you provide terms without `and` or `or`, the script will search for each term individually across all log files.
 
-#### Separate String and Regex Queries:
+## Examples
 
-```bash
-./log_searcher.py /path/to/logs 'string1' '^regex_pattern$'
-```
+1. Search for IP addresses in the range 10.254.0.0/24:
 
-This will find lines containing `string1` or matching the regex pattern.
+   ```bash
+   ./log_searcher.py /path/to/logs "^10\.254\.0\.([0-9]{1,2}|[01][0-9]{2}|2[0-4][0-9]|25[0-5])$"
+   ```
 
-### Example: Searching for IP Addresses
+2. Search for logs containing both `error` and `successful`:
 
-To search for all IP addresses in the range 10.254.0.0/24:
+   ```bash
+   ./log_searcher.py /path/to/logs "error" and "successful"
+   ```
 
-```bash
-./log_searcher.py /path/to/logs '^10\.254\.0\.([0-9]{1,2}|[01][0-9]{2}|2[0-4][0-9]|25[0-5])$'
-```
+3. Save search results to a file:
+   ```bash
+   ./log_searcher.py /path/to/logs "error" --output results.json
+   ```
 
-### Output:
+## Output
 
-If you want to save the results to a file, use the `--output` flag followed by the filename:
-
-```bash
-./log_searcher.py /path/to/logs 'search_pattern' --output results.json
-```
-
-If no `--output` flag is provided, the script will print results to the screen.
-
-### ADD-ON:
-
-The json format allows the output to be converted into other formats such as html.
-
-I have include a script to convert this script's json output to html. json_to_html_report.py
-
-For example:
-
-```bash
-python json_to_html_report.py searchresults.json report.html
-
-```
-
-## Conclusion
-
-This tool is designed to be a versatile and efficient solution for log searching tasks. Adapt the search patterns according to your needs and benefit from its speed and multi-threading capabilities.
+The output can be directed to both the terminal and a JSON file. Use the `--output` flag followed by the filename to specify the output file. When the `--output` flag is used, results are also printed on the terminal.
