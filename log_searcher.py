@@ -1,7 +1,8 @@
+#Log Searcher by: Michael Nieto @mikensec
 import os
 import re
-import sys
 import json
+import argparse
 from multiprocessing import Pool
 
 def search_file(args):
@@ -9,58 +10,51 @@ def search_file(args):
     results = []
 
     with open(filepath, 'r', errors='replace') as file:
-        for lineno, line in enumerate(file, 1):
+        for line_num, line in enumerate(file, 1):
             for pattern in patterns:
                 if re.search(pattern, line):
                     results.append({
                         "file": filepath,
-                        "line": lineno,
+                        "line": line_num,
                         "string": pattern,
                         "result": line.strip()
                     })
+
     return results
 
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: log_searcher.py <directory> <pattern1> [pattern2 ...] [--output output_file.json]")
-        return
+def process_logs(directory_path, patterns):
+    all_files = []
 
-    directory = sys.argv[1]
-    output_file = None
+    for dirpath, _, filenames in os.walk(directory_path):
+        for filename in filenames:
+            all_files.append(os.path.join(dirpath, filename))
 
-    # Extract patterns and check for --output flag
-    patterns = []
-    args = sys.argv[2:]
-    while args:
-        arg = args.pop(0)
-        if arg == '--output' and args:
-            output_file = args.pop(0)
-        else:
-            patterns.append(arg)
-
-    if not patterns:
-        print("At least one search pattern must be provided.")
-        return
-
-    # Convert combined queries using 'and' into single regex pattern
-    for i, pattern in enumerate(patterns):
-        if ' and ' in pattern:
-            sub_patterns = pattern.split(' and ')
-            combined_pattern = '(?=.*' + ')(?=.*'.join(map(re.escape, sub_patterns)) + ')'
-            patterns[i] = combined_pattern
-
-    all_files = [os.path.join(root, file) for root, dirs, files in os.walk(directory) for file in files]
-    
     with Pool() as pool:
-        results = pool.map(search_file, [(file, patterns) for file in all_files])
-    results = [item for sublist in results for item in sublist]
+        all_results = pool.map(search_file, [(f, patterns) for f in all_files])
 
-    if output_file:
-        with open(output_file, 'w') as f:
-            json.dump(results, f, indent=4)
-    else:
-        for entry in results:
-            print(json.dumps(entry, indent=4))
+    # Flatten the list of lists
+    results = [item for sublist in all_results for item in sublist]
+
+    return results
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Search logs using regex patterns.")
+    parser.add_argument("directory", help="Directory containing the log files.")
+    parser.add_argument("search_terms", nargs='+', help="Patterns to search for. Use 'and' between patterns to search for combined queries. Use spaces between distinct queries.")
+    parser.add_argument("--output", help="Output file to save the results in JSON format. If not specified, results will be printed on screen.")
+    
+    args = parser.parse_args()
+
+    # Split search terms at spaces, treating 'and' as a combined search
+    patterns = [term for term in args.search_terms if term.lower() != 'and']
+
+    results = process_logs(args.directory, patterns)
+
+    # If an output file is specified, write to that file
+    if args.output:
+        with open(args.output, 'w') as outfile:
+            json.dump(results, outfile, indent=4)
+        print(f"Results saved to {args.output}.")
+
+    # Always print results to screen
+    print(json.dumps(results, indent=4))
