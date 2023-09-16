@@ -11,6 +11,12 @@ This script provides a fast and efficient way to search through large log direct
 - Python 3.x
 - No external libraries are needed.
 
+## Download
+
+```bash
+git clone https://github.com/mikensec/logsearcher.git
+```
+
 ## Usage
 
 ### Making the script executable:
