@@ -1,61 +1,63 @@
+import argparse
 import os
 import re
 import json
-import argparse
-import multiprocessing
+import concurrent.futures
 
-def search_file(args):
-    filepath, patterns = args
+def search_files(directory, search_terms):
     results = []
 
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-        for lineno, line in enumerate(f, 1):
-            all_found = all(any(re.search(pattern, line) for pattern in or_group) for or_group in patterns)
-            if all_found:
-                results.append((filepath, lineno, line.strip(), patterns))
-
+    for foldername, subfolders, filenames in os.walk(directory):
+        for filename in filenames:
+            filepath = os.path.join(foldername, filename)
+            
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
+                lines = file.readlines()
+                for line_num, line in enumerate(lines):
+                    all_present = all(re.search(term, line) for term in search_terms if term not in ['and', 'or'])
+                    if all_present:
+                        result = {
+                            "file": filepath,
+                            "line_num": line_num + 1,
+                            "string": " and ".join(search_terms),
+                            "log": line.strip()
+                        }
+                        results.append(result)
+                        
     return results
 
-def parse_search_terms(terms):
-    and_groups = [group.split(' or ') for group in terms]
-    and_groups = [[term.strip().lower() for term in group] for group in and_groups]
-
-    return and_groups
-
 def main():
-    parser = argparse.ArgumentParser(description='Search log files for patterns.')
-    parser.add_argument('directory', help='Directory containing log files.')
-    parser.add_argument('search_terms', nargs='+', help='Terms to search for. Use "and" for AND operations, "or" for OR operations.')
-    parser.add_argument('--output', help='Output to a JSON file.', action='store_true')
-
+    parser = argparse.ArgumentParser(description="Search for terms within logs in a given directory.")
+    parser.add_argument("directory", type=str, help="The directory where the logs are stored.")
+    parser.add_argument("search_terms", type=str, nargs='+', help="The terms to search for. Use 'and' or 'or' to specify multiple terms.")
+    parser.add_argument("--output", type=str, default=None, help="Provide a filename to save the results in addition to printing them.")
+    
     args = parser.parse_args()
-
-    search_terms = parse_search_terms(args.search_terms)
-
-    pool = multiprocessing.Pool()
-    files = [os.path.join(root, file) for root, dirs, files in os.walk(args.directory) for file in files]
-
-    results = []
-    for file_results in pool.imap(search_file, [(f, search_terms) for f in files]):
-        results.extend(file_results)
-
-    output = {
-        "search": args.search_terms,
-        "results": [
-            {
-                "file": r[0],
-                "line": r[1],
-                "match": r[2],
-                "log": r[3]
-            } for r in results
-        ]
-    }
-
+    
+    search_terms = args.search_terms
+    combined_search_terms = []
+    
+    tmp_terms = []
+    for term in search_terms:
+        term = term.lower()
+        if term == "and":
+            combined_search_terms.append(tmp_terms)
+            tmp_terms = []
+        else:
+            tmp_terms.append(term)
+    combined_search_terms.append(tmp_terms)
+    
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        all_results = []
+        for search_set in combined_search_terms:
+            all_results.extend(executor.submit(search_files, args.directory, search_set).result())
+    
     if args.output:
-        with open('output.json', 'w') as f:
-            json.dump(output, f, indent=4)
-
-    print(json.dumps(output, indent=4))
-
+        with open(args.output, 'w') as f:
+            json.dump(all_results, f, indent=4)
+        print(json.dumps(all_results, indent=4))
+    else:
+        print(json.dumps(all_results, indent=4))
+    
 if __name__ == "__main__":
     main()
