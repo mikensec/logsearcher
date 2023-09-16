@@ -81,6 +81,19 @@ If you want to save the results to a file, use the `--output` flag followed by t
 
 If no `--output` flag is provided, the script will print results to the screen.
 
+### ADD-ON:
+
+The json format allows the output to be converted into other formats such as html.
+
+I have include a script to convert this script's json output to html. json_to_html_report.py
+
+For example:
+
+```bash
+python json_to_html_report.py searchresults.json report.html
+
+```
+
 ## Conclusion
 
 This tool is designed to be a versatile and efficient solution for log searching tasks. Adapt the search patterns according to your needs and benefit from its speed and multi-threading capabilities.
