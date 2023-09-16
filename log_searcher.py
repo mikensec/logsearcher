@@ -15,7 +15,8 @@ def search_file(args):
                     results.append({
                         "file": filepath,
                         "line": lineno,
-                        "string": line.strip()
+                        "string": pattern,
+                        "result": line.strip()
                     })
     return results
 
