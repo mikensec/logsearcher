@@ -1,8 +1,7 @@
-import argparse
 import os
+import argparse
 import re
 import json
-import concurrent.futures
 
 def search_files(directory, search_terms):
     results = []
@@ -10,47 +9,48 @@ def search_files(directory, search_terms):
     for foldername, subfolders, filenames in os.walk(directory):
         for filename in filenames:
             filepath = os.path.join(foldername, filename)
-            
-            with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
-                lines = file.readlines()
-                for line_num, line in enumerate(lines):
-                    if check_matching(line, search_terms):
-                        result = {
+
+            with open(filepath, 'r', errors='replace') as file:
+                for line_num, line in enumerate(file, 1):
+                    combined_search = []
+                    or_group_results = []
+
+                    # Evaluate OR groups first
+                    for or_group in search_terms:
+                        and_group_results = [re.search(term, line) for term in or_group]
+                        if all(and_group_results):
+                            combined_search.extend(or_group)
+
+                    if combined_search:
+                        results.append({
                             "file": filepath,
-                            "line_num": line_num + 1,
-                            "string": " and ".join(search_terms).replace(" and or ", " or "),
-                            "log": line.strip()
-                        }
-                        results.append(result)
-                        
+                            "line_num": line_num,
+                            "string": ' and '.join(combined_search),
+                            "results": line.strip()
+                        })
+
     return results
 
-def check_matching(line, search_terms):
-    or_groups = [group for group in ' '.join(search_terms).split(' or ')]
-
-    for group in or_groups:
-        terms = group.split(' and ')
-        if all(re.search(term, line) for term in terms):
-            return True
-    return False
-
 def main():
-    parser = argparse.ArgumentParser(description="Search for terms within logs in a given directory.")
-    parser.add_argument("directory", type=str, help="The directory where the logs are stored.")
-    parser.add_argument("search_terms", type=str, nargs='+', help="The terms to search for. Use 'and' or 'or' to specify multiple terms.")
-    parser.add_argument("--output", type=str, default=None, help="Provide a filename to save the results in addition to printing them.")
-    
+    parser = argparse.ArgumentParser(description="Search for strings in log files.")
+    parser.add_argument("directory", help="Directory to search in.")
+    parser.add_argument("search_terms", nargs="+", help="Search terms. Use 'and' & 'or' to combine.")
+    parser.add_argument("--output", help="JSON output file name.")
     args = parser.parse_args()
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = executor.submit(search_files, args.directory, args.search_terms).result()
-    
+    # Split search terms by 'or', then each group by 'and'
+    raw_search_terms = ' '.join(args.search_terms).split(' or ')
+    search_terms = [group.split(' and ') for group in raw_search_terms]
+
+    results = search_files(args.directory, search_terms)
+
     if args.output:
-        with open(args.output, 'w') as f:
-            json.dump(results, f, indent=4)
-        print(json.dumps(results, indent=4))
-    else:
-        print(json.dumps(results, indent=4))
-    
+        with open(args.output, 'w') as file:
+            json.dump(results, file, indent=4)
+
+    # Printing to console
+    for result in results:
+        print(json.dumps(result, indent=4))
+
 if __name__ == "__main__":
     main()
