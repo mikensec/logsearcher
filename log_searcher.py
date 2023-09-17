@@ -14,17 +14,25 @@ def search_files(directory, search_terms):
             with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
                 lines = file.readlines()
                 for line_num, line in enumerate(lines):
-                    all_present = all(re.search(term, line) for term in search_terms if term not in ['and', 'or'])
-                    if all_present:
+                    if check_matching(line, search_terms):
                         result = {
                             "file": filepath,
                             "line_num": line_num + 1,
-                            "string": " and ".join(search_terms),
+                            "string": " and ".join(search_terms).replace(" and or ", " or "),
                             "log": line.strip()
                         }
                         results.append(result)
                         
     return results
+
+def check_matching(line, search_terms):
+    or_groups = [group for group in ' '.join(search_terms).split(' or ')]
+
+    for group in or_groups:
+        terms = group.split(' and ')
+        if all(re.search(term, line) for term in terms):
+            return True
+    return False
 
 def main():
     parser = argparse.ArgumentParser(description="Search for terms within logs in a given directory.")
@@ -33,31 +41,16 @@ def main():
     parser.add_argument("--output", type=str, default=None, help="Provide a filename to save the results in addition to printing them.")
     
     args = parser.parse_args()
-    
-    search_terms = args.search_terms
-    combined_search_terms = []
-    
-    tmp_terms = []
-    for term in search_terms:
-        term = term.lower()
-        if term == "and":
-            combined_search_terms.append(tmp_terms)
-            tmp_terms = []
-        else:
-            tmp_terms.append(term)
-    combined_search_terms.append(tmp_terms)
-    
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        all_results = []
-        for search_set in combined_search_terms:
-            all_results.extend(executor.submit(search_files, args.directory, search_set).result())
+        results = executor.submit(search_files, args.directory, args.search_terms).result()
     
     if args.output:
         with open(args.output, 'w') as f:
-            json.dump(all_results, f, indent=4)
-        print(json.dumps(all_results, indent=4))
+            json.dump(results, f, indent=4)
+        print(json.dumps(results, indent=4))
     else:
-        print(json.dumps(all_results, indent=4))
+        print(json.dumps(results, indent=4))
     
 if __name__ == "__main__":
     main()
