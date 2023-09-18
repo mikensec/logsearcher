@@ -49,8 +49,8 @@ def main():
             json.dump(results, file, indent=4)
 
     # Printing to console
-    for result in results:
-        print(json.dumps(result, indent=4))
+    #for result in results:
+    #    print(json.dumps(result, indent=4))
 
 if __name__ == "__main__":
     main()
