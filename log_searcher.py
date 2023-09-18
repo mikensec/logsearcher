@@ -4,38 +4,30 @@ import os
 import argparse
 import re
 import json
+import concurrent.futures
 
-def search_files(directory, search_terms):
+def search_file(filepath, search_terms):
     results = []
 
-    print(f"Searching in directory: {directory}")
-    
-    for foldername, subfolders, filenames in os.walk(directory):
-        for filename in filenames:
-            filepath = os.path.join(foldername, filename)
+    with open(filepath, 'r', errors='replace') as file:
+        for line_num, line in enumerate(file, 1):
+            combined_search = []
+            or_group_results = []
 
-            print(f"Reading file: {filepath}")
+            # Evaluate OR groups first
+            for or_group in search_terms:
+                and_group_results = [re.search(term, line) for term in or_group]
+                if all(and_group_results):
+                    combined_search.extend(or_group)
 
-            with open(filepath, 'r', errors='replace') as file:
-                for line_num, line in enumerate(file, 1):
-                    combined_search = []
-                    or_group_results = []
-
-                    # Evaluate OR groups first
-                    for or_group in search_terms:
-                        and_group_results = [re.search(term, line) for term in or_group]
-                        if all(and_group_results):
-                            combined_search.extend(or_group)
-
-                    if combined_search:
-                        match_data = {
-                            "file": filepath,
-                            "line_num": line_num,
-                            "string": ' and '.join(combined_search),
-                            "results": line.strip()
-                        }
-                        results.append(match_data)
-                        print(f"Match found: {match_data}")
+            if combined_search:
+                match_data = {
+                    "file": filepath,
+                    "line_num": line_num,
+                    "string": ' and '.join(combined_search),
+                    "results": line.strip()
+                }
+                results.append(match_data)
 
     return results
 
@@ -49,20 +41,25 @@ def main():
     # Split search terms by 'or', then each group by 'and'
     raw_search_terms = ' '.join(args.search_terms).split(' or ')
     search_terms = [group.split(' and ') for group in raw_search_terms]
-    
-    print(f"Parsed search terms: {search_terms}")
 
-    results = search_files(args.directory, search_terms)
+    all_results = []
+
+    # Using a ThreadPool for concurrent file searching
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Using os.walk to generate a list of filepaths
+        filepaths = [os.path.join(folder, filename) for folder, _, filenames in os.walk(args.directory) for filename in filenames]
+
+        # Map filepaths to the search function, and collect results as they become available
+        for result in executor.map(search_file, filepaths, [search_terms]*len(filepaths)):
+            all_results.extend(result)
 
     if args.output:
         with open(args.output, 'w') as file:
-            json.dump(results, file, indent=4)
-            print(f"Results saved to: {args.output}")
+            json.dump(all_results, file, indent=4)
 
     # Printing to console
-    for result in results:
+    for result in all_results:
         print(json.dumps(result, indent=4))
 
 if __name__ == "__main__":
     main()
-                                                   
