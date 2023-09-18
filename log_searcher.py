@@ -68,14 +68,18 @@ def main():
 
     if args.output:
         with open(args.output, 'w') as file:
-            json.dump(all_results, file, indent=4)
+            json.dump(all_results, file, indent=4, ensure_ascii=False)
 
     # Printing to console
     if not all_results:
         print("No matches found.")
     else:
         for result in all_results:
-            print(json.dumps(result, indent=4))
+            print("File:", result["file"])
+            print("Line number:", result["line_num"])
+            print("Match string:", result["string"])
+            print("Result:", result["results"])
+            print("-" * 40)  # separator for better readability
 
 if __name__ == "__main__":
     main()
