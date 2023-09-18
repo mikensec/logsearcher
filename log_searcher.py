@@ -5,6 +5,7 @@ import argparse
 import re
 import json
 import concurrent.futures
+import sys
 
 def search_file(filepath, search_terms):
     results = []
@@ -31,6 +32,14 @@ def search_file(filepath, search_terms):
 
     return results
 
+def display_progress_bar(iteration, total, bar_length=50):
+    progress = (iteration / total)
+    arrow = '=' * int(round(progress * bar_length) - 1) + '>'
+    spaces = ' ' * (bar_length - len(arrow))
+    
+    sys.stdout.write(f'\rProgress: [{arrow + spaces}] {int(progress * 100)}%')
+    sys.stdout.flush()
+
 def main():
     parser = argparse.ArgumentParser(description="Search for strings in log files.")
     parser.add_argument("directory", help="Directory to search in.")
@@ -44,14 +53,18 @@ def main():
 
     all_results = []
 
+    # Using os.walk to generate a list of filepaths
+    filepaths = [os.path.join(folder, filename) for folder, _, filenames in os.walk(args.directory) for filename in filenames]
+
     # Using a ThreadPool for concurrent file searching
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Using os.walk to generate a list of filepaths
-        filepaths = [os.path.join(folder, filename) for folder, _, filenames in os.walk(args.directory) for filename in filenames]
-
-        # Map filepaths to the search function, and collect results as they become available
-        for result in executor.map(search_file, filepaths, [search_terms]*len(filepaths)):
+        future_to_filepath = {executor.submit(search_file, filepath, search_terms): filepath for filepath in filepaths}
+        for index, future in enumerate(concurrent.futures.as_completed(future_to_filepath)):
+            result = future.result()
             all_results.extend(result)
+            display_progress_bar(index + 1, len(filepaths))
+    
+    print()  # Add a newline after the progress bar
 
     if args.output:
         with open(args.output, 'w') as file:
