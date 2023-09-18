@@ -71,8 +71,11 @@ def main():
             json.dump(all_results, file, indent=4)
 
     # Printing to console
-    for result in all_results:
-        print(json.dumps(result, indent=4))
+    if not all_results:
+        print("No matches found.")
+    else:
+        for result in all_results:
+            print(json.dumps(result, indent=4))
 
 if __name__ == "__main__":
     main()
